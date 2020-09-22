@@ -82,9 +82,11 @@ verify_token(#{alg := Alg = <<"HS", _/binary>>}, Token, #{secret := Secret, opts
 verify_token(#{alg := <<"RS", _/binary>>}, _Token, #{authority := undefined}) ->
     {error, rsa_pubkey_undefined};
 verify_token(#{kid := KId, alg := Alg = <<"RS", _/binary>>}, Token, #{authority := Authority, opts := Opts}) ->
-    PubKey = get_authority_pub_key(Authority,KId),
-    JsonKey = jiffy:encode(PubKey),
-    Jwk = jwt:decode(JsonKey),
+
+    PubKeyJson = get_authority_pub_key(Authority),
+    application:ensure_all_started(jwk),
+    % JsonKey = jiffy:encode(PubKey),
+    {ok, Jwk} = jwk:decode(KId,PubKeyJson),
     % JWK = jose_jwk:from_map(hd(PubKey)),
     verify_token2(Alg, Token, Jwk, Opts);
 
@@ -107,16 +109,7 @@ verify_token2(Alg, Token, SecretOrKey, Opts) ->
         _Error:Reason ->
             {error, Reason}
     end.
-verify_token3(Token, SecretOrKey) ->
-    try jose_jwt:verify(Token, SecretOrKey) of
-        {ok, Claims}  ->
-            {ok, Claims};
-        {error, Reason} ->
-            {error, Reason}
-    catch
-        _Error:Reason ->
-            {error, Reason}
-    end.
+
 
 
 decode_algo(<<"HS256">>) -> hs256;
@@ -166,7 +159,7 @@ feedvar(Checklists, #{username := Username, clientid := ClientId}) ->
 %%--------------------------------------------------------------------
 
 
-get_authority_pub_key(Authority,KId) ->
+get_authority_pub_key(Authority) ->
     % KId = Headers,
     {ok, _} = application:ensure_all_started(inets),
     {ok, _} = application:ensure_all_started(ssl),
@@ -176,12 +169,12 @@ get_authority_pub_key(Authority,KId) ->
         httpc:request(ConfigurationUrl),
     Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
     #{<<"jwks_uri">> := JwksUri} = Configuration,
-    {ok, { {_, 200, _}, _, JwksJson}} =
-    httpc:request(binary_to_list(JwksUri)),
-    Jwks = jiffy:decode(JwksJson, [return_maps]),
-    #{<<"keys">> := Keys} = Jwks,
-    lists:filter(
-                fun(Key) ->
-                    #{<<"kid">> := K} = Key,
-                    K =:= KId
-                end, Keys).
+    {ok, { {_, 200, _}, _, JwksJson}} = httpc:request(binary_to_list(JwksUri)),
+    JwksJson.
+    % Jwks = jiffy:decode(JwksJson, [return_maps]),
+    % #{<<"keys">> := Keys} = Jwks,
+    % lists:filter(
+    %             fun(Key) ->
+    %                 #{<<"kid">> := K} = Key,
+    %                 K =:= KId
+    %             end, Keys).

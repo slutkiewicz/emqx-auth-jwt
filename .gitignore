@@ -9,7 +9,7 @@ rel/example_project
 .concrete/DEV_MODE
 .rebar
 .erlang.mk/
-emqx_auth_jwt.d
+emqx_auth_custom_jwt.d
 data/
 .DS_Store
 cover/
@@ -22,6 +22,6 @@ erlang.mk
 _build/
 rebar.lock
 rebar3.crashdump
-etc/emqx_auth_jwt.conf.rendered
+etc/emqx_auth_custom_jwt.conf.rendered
 .rebar3/
 *.swp

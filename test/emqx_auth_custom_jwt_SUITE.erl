@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqx_auth_jwt_SUITE).
+-module(emqx_auth_custom_jwt_SUITE).
 
 -compile(nowarn_export_all).
 -compile(export_all).
@@ -23,13 +23,13 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--define(APP, emqx_auth_jwt).
+-define(APP, emqx_auth_custom_jwt).
 
 all() ->
-    [{group, emqx_auth_jwt}].
+    [{group, emqx_auth_custom_jwt}].
 
 groups() ->
-    [{emqx_auth_jwt, [sequence], [ t_check_auth
+    [{emqx_auth_custom_jwt, [sequence], [ t_check_auth
                                  , t_check_claims
                                  , t_check_claims_clientid
                                  , t_check_claims_username
@@ -37,11 +37,11 @@ groups() ->
     ].
 
 init_per_suite(Config) ->
-    emqx_ct_helpers:start_apps([emqx, emqx_auth_jwt], fun set_special_configs/1),
+    emqx_ct_helpers:start_apps([emqx, emqx_auth_custom_jwt], fun set_special_configs/1),
     Config.
 
 end_per_suite(_Config) ->
-    emqx_ct_helpers:stop_apps([emqx_auth_jwt, emqx]).
+    emqx_ct_helpers:stop_apps([emqx_auth_custom_jwt, emqx]).
 
 set_special_configs(emqx) ->
     application:set_env(emqx, allow_anonymous, false),
@@ -54,9 +54,9 @@ set_special_configs(emqx) ->
     application:set_env(emqx, acl_file,
                         emqx_ct_helpers:deps_path(emqx, AclFilePath));
 
-set_special_configs(emqx_auth_jwt) ->
-    application:set_env(emqx_auth_jwt, secret, "emqxsecret"),
-    application:set_env(emqx_auth_jwt, from, password);
+set_special_configs(emqx_auth_custom_jwt) ->
+    application:set_env(emqx_auth_custom_jwt, secret, "emqxsecret"),
+    application:set_env(emqx_auth_custom_jwt, from, password);
 
 set_special_configs(_) ->
     ok.
@@ -65,32 +65,32 @@ set_special_configs(_) ->
 %% Testcases
 %%------------------------------------------------------------------------------
 
-t_check_auth(_) ->
-    Plain = #{clientid => <<"client1">>, username => <<"plain">>, zone => external},
-    Jwt = jwerl:sign([{clientid, <<"client1">>},
-                      {username, <<"plain">>},
-                      {exp, os:system_time(seconds) + 3}], hs256, <<"emqxsecret">>),
-    ct:pal("Jwt: ~p~n", [Jwt]),
+% t_check_auth(_) ->
+%     Plain = #{clientid => <<"client1">>, username => <<"plain">>, zone => external},
+%     Jwt = jwerl:sign([{clientid, <<"client1">>},
+%                       {username, <<"plain">>},
+%                       {exp, os:system_time(seconds) + 3}], hs256, <<"emqxsecret">>),
+%     ct:pal("Jwt: ~p~n", [Jwt]),
 
-    Result0 = emqx_access_control:authenticate(Plain#{password => Jwt}),
-    ct:pal("Auth result: ~p~n", [Result0]),
-    ?assertMatch({ok, #{auth_result := success, jwt_claims := #{clientid := <<"client1">>}}}, Result0),
+%     Result0 = emqx_access_control:authenticate(Plain#{password => Jwt}),
+%     ct:pal("Auth result: ~p~n", [Result0]),
+%     ?assertMatch({ok, #{auth_result := success, jwt_claims := #{clientid := <<"client1">>}}}, Result0),
 
-    ct:sleep(3100),
-    Result1 = emqx_access_control:authenticate(Plain#{password => Jwt}),
-    ct:pal("Auth result after 1000ms: ~p~n", [Result1]),
-    ?assertMatch({error, _}, Result1),
+%     ct:sleep(3100),
+%     Result1 = emqx_access_control:authenticate(Plain#{password => Jwt}),
+%     ct:pal("Auth result after 1000ms: ~p~n", [Result1]),
+%     ?assertMatch({error, _}, Result1),
 
-    Jwt_Error = jwerl:sign([{clientid, <<"client1">>},
-                            {username, <<"plain">>}], hs256, <<"secret">>),
-    ct:pal("invalid jwt: ~p~n", [Jwt_Error]),
-    Result2 = emqx_access_control:authenticate(Plain#{password => Jwt_Error}),
-    ct:pal("Auth result for the invalid jwt: ~p~n", [Result2]),
-    ?assertEqual({error, invalid_signature}, Result2),
-    ?assertMatch({error, _}, emqx_access_control:authenticate(Plain#{password => <<"asd">>})).
+%     Jwt_Error = jwerl:sign([{clientid, <<"client1">>},
+%                             {username, <<"plain">>}], hs256, <<"secret">>),
+%     ct:pal("invalid jwt: ~p~n", [Jwt_Error]),
+%     Result2 = emqx_access_control:authenticate(Plain#{password => Jwt_Error}),
+%     ct:pal("Auth result for the invalid jwt: ~p~n", [Result2]),
+%     ?assertEqual({error, invalid_signature}, Result2),
+%     ?assertMatch({error, _}, emqx_access_control:authenticate(Plain#{password => <<"asd">>})).
 
 t_check_claims(_) ->
-    application:set_env(emqx_auth_jwt, verify_claims, [{sub, <<"value">>}]),
+    application:set_env(emqx_auth_custom_jwt, verify_claims, [{sub, <<"value">>}]),
     Plain = #{clientid => <<"client1">>, username => <<"plain">>, zone => external},
     Jwt = jwerl:sign([{clientid, <<"client1">>},
                       {username, <<"plain">>},
@@ -106,7 +106,7 @@ t_check_claims(_) ->
     ?assertEqual({error, invalid_signature}, Result2).
 
 t_check_claims_clientid(_) ->
-    application:set_env(emqx_auth_jwt, verify_claims, [{clientid, <<"%c">>}]),
+    application:set_env(emqx_auth_custom_jwt, verify_claims, [{clientid, <<"%c">>}]),
     Plain = #{clientid => <<"client23">>, username => <<"plain">>, zone => external},
     Jwt = jwerl:sign([{clientid, <<"client23">>},
                       {username, <<"plain">>},
@@ -121,7 +121,7 @@ t_check_claims_clientid(_) ->
     ?assertEqual({error, invalid_signature}, Result2).
 
 t_check_claims_username(_) ->
-    application:set_env(emqx_auth_jwt, verify_claims, [{username, <<"%u">>}]),
+    application:set_env(emqx_auth_custom_jwt, verify_claims, [{username, <<"%u">>}]),
     Plain = #{clientid => <<"client23">>, username => <<"plain">>, zone => external},
     Jwt = jwerl:sign([{clientid, <<"client23">>},
                       {username, <<"plain">>},

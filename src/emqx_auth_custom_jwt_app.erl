@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqx_auth_jwt_app).
+-module(emqx_auth_custom_jwt_app).
 
 -behaviour(application).
 
@@ -26,12 +26,12 @@
 
 -export([init/1]).
 
--define(APP, emqx_auth_jwt).
+-define(APP, emqx_auth_custom_jwt).
 
--define(JWT_ACTION, {emqx_auth_jwt, check, [auth_env()]}).
+-define(JWT_ACTION, {emqx_auth_custom_jwt, check, [auth_env()]}).
 
 start(_Type, _Args) ->
-    ok = emqx_auth_jwt:register_metrics(),
+    ok = emqx_auth_custom_jwt:register_metrics(),
     emqx:hook('client.authenticate', ?JWT_ACTION),
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
@@ -50,11 +50,12 @@ init([]) ->
 %%--------------------------------------------------------------------
 
 auth_env() ->
-    #{secret     => env(secret, undefined),
-      from       => env(from, password),
-      pubkey     => read_pubkey(),
-      checklists => env(verify_claims, []),
-      opts       => env(jwerl_opts, #{})
+    #{secret         => env(secret, undefined),
+      from           => env(from, password),
+      pubkey         => read_pubkey(),
+      authority      => env(authority, undefined),
+      checklists     => env(verify_claims, []),
+      opts           => env(jwerl_opts, #{})
      }.
 
 read_pubkey() ->

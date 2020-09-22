@@ -14,7 +14,7 @@
 %% limitations under the License.
 %%--------------------------------------------------------------------
 
--module(emqx_auth_jwt).
+-module(emqx_auth_custom_jwt).
 
 -include_lib("emqx/include/emqx.hrl").
 -include_lib("emqx/include/logger.hrl").
@@ -79,10 +79,10 @@ verify_token(#{alg := <<"HS", _/binary>>}, _Token, #{secret := undefined}) ->
 verify_token(#{alg := Alg = <<"HS", _/binary>>}, Token, #{secret := Secret, opts := Opts}) ->
     verify_token2(Alg, Token, Secret, Opts);
 
-verify_token(#{alg := <<"RS", _/binary>>}, _Token, #{pubkey := undefined}) ->
+verify_token(#{alg := <<"RS", _/binary>>}, _Token, #{authority := undefined}) ->
     {error, rsa_pubkey_undefined};
-verify_token(#{alg := Alg = <<"RS", _/binary>>}, Token, #{pubkey := PubKey, opts := Opts}) ->
-    verify_token2(Alg, Token, PubKey, Opts);
+verify_token(#{kid := KId, alg := Alg = <<"RS", _/binary>>}, Token, #{authority := Authority, opts := Opts}) ->
+    verify_token2(Alg, Token, get_authority_pub_key(Authority,KId), Opts);
 
 verify_token(#{alg := <<"ES", _/binary>>}, _Token, #{pubkey := undefined}) ->
     {error, ecdsa_pubkey_undefined};
@@ -144,3 +144,29 @@ feedvar(Checklists, #{username := Username, clientid := ClientId}) ->
                  ({K, Expected}) -> {K, Expected}
               end, Checklists).
 
+
+
+%%--------------------------------------------------------------------
+%% Get Authority document
+%%--------------------------------------------------------------------
+
+
+get_authority_pub_key(Authority,KId) ->
+    % KId = Headers,
+    {ok, _} = application:ensure_all_started(inets),
+    {ok, _} = application:ensure_all_started(ssl),
+    ConfigurationUrl =
+        Authority++".well-known/openid-configuration",
+    {ok, { {_, 200, _}, _, ConfigurationJson}} =
+        httpc:request(ConfigurationUrl),
+    Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
+    #{<<"jwks_uri">> := JwksUri} = Configuration,
+    {ok, { {_, 200, _}, _, JwksJson}} =
+    httpc:request(binary_to_list(JwksUri)),
+    Jwks = jiffy:decode(JwksJson, [return_maps]),
+    #{<<"keys">> := Keys} = Jwks,
+    lists:filter(
+                fun(Key) ->
+                    #{<<"kid">> := K} = Key,
+                    K =:= KId
+                end, Keys).

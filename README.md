@@ -13,7 +13,7 @@ make && make tests
 Configure the Plugin
 --------------------
 
-File: etc/plugins/emqx_auth_jwt.conf
+File: etc/plugins/emqx_auth_custom_jwt.conf
 
 ```
 ## HMAC Hash Secret.
@@ -52,7 +52,7 @@ Load the Plugin
 ---------------
 
 ```
-./bin/emqx_ctl plugins load emqx_auth_jwt
+./bin/emqx_ctl plugins load emqx_auth_custom_jwt
 ```
 
 Example

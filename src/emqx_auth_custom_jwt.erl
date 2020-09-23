@@ -89,7 +89,7 @@ verify_token(#{kid := KId}, Token, #{authority := Authority}) ->
 
 verify_token2(Token, Key) ->
     application:ensure_all_started(jwt),
-    try jwt:decode(list_to_binary(Token), Key) of
+    try jwt:decode(Token, Key) of
         {ok, Claims}  ->
             {ok, Claims};
         {error, Reason} ->

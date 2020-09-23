@@ -51,7 +51,7 @@ check(ClientInfo, AuthResult, Env = #{from := From, checklists := Checklists}) -
         error ->
             ok = emqx_metrics:inc(?AUTH_METRICS(ignore)),
             {ok, AuthResult#{auth_result => token_undefined, anonymous => false}};
-        {ok, Token} ->
+        {ok, Token} ->            
             try jwerl:header(Token) of
                 Headers ->
                     case verify_token(Headers, Token, Env) of
@@ -74,33 +74,22 @@ description() -> "Authentication with JWT".
 %% Verify Token
 %%--------------------------------------------------------------------
 
-verify_token(#{alg := <<"HS", _/binary>>}, _Token, #{secret := undefined}) ->
-    {error, hmac_secret_undefined};
-verify_token(#{alg := Alg = <<"HS", _/binary>>}, Token, #{secret := Secret, opts := Opts}) ->
-    verify_token2(Alg, Token, Secret, Opts);
-
 verify_token(#{alg := <<"RS", _/binary>>}, _Token, #{authority := undefined}) ->
     {error, rsa_pubkey_undefined};
-verify_token(#{kid := KId, alg := Alg = <<"RS", _/binary>>}, Token, #{authority := Authority, opts := Opts}) ->
 
-    PubKeyJson = get_authority_pub_key(Authority),
+verify_token(#{kid := KId}, Token, #{authority := Authority}) ->
     application:ensure_all_started(jwk),
-    % JsonKey = jiffy:encode(PubKey),
-    {ok, Jwk} = jwk:decode(KId,PubKeyJson),
-    % JWK = jose_jwk:from_map(hd(PubKey)),
-    verify_token2(Alg, Token, Jwk, Opts);
+    PubKey = get_authority_pub_key(Authority),
+    case jwk:decode(KId,PubKey) of 
+        {ok,Jwk} ->
+            verify_token2(Token,Jwk);
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
-verify_token(#{alg := <<"ES", _/binary>>}, _Token, #{pubkey := undefined}) ->
-    {error, ecdsa_pubkey_undefined};
-verify_token(#{alg := Alg = <<"ES", _/binary>>}, Token, #{pubkey := PubKey, opts := Opts}) ->
-    verify_token2(Alg, Token, PubKey, Opts);
-
-verify_token(Header, _Token, _Env) ->
-    ?LOG(error, "Unsupported token algorithm: ~p", [Header]),
-    {error, token_unsupported}.
-
-verify_token2(Alg, Token, SecretOrKey, Opts) ->
-    try jwerl:verify(Token, decode_algo(Alg), SecretOrKey, #{}, Opts) of
+verify_token2(Token, Key) ->
+    application:ensure_all_started(jwt),
+    try jwt:decode(list_to_binary(Token), Key) of
         {ok, Claims}  ->
             {ok, Claims};
         {error, Reason} ->
@@ -112,16 +101,10 @@ verify_token2(Alg, Token, SecretOrKey, Opts) ->
 
 
 
-decode_algo(<<"HS256">>) -> hs256;
-decode_algo(<<"HS384">>) -> hs384;
-decode_algo(<<"HS512">>) -> hs512;
+
 decode_algo(<<"RS256">>) -> rs256;
 decode_algo(<<"RS384">>) -> rs384;
 decode_algo(<<"RS512">>) -> rs512;
-decode_algo(<<"ES256">>) -> es256;
-decode_algo(<<"ES384">>) -> es384;
-decode_algo(<<"ES512">>) -> es512;
-decode_algo(<<"none">>)  -> none;
 decode_algo(Alg) -> throw({error, {unsupported_algorithm, Alg}}).
 
 %%--------------------------------------------------------------------
@@ -160,7 +143,6 @@ feedvar(Checklists, #{username := Username, clientid := ClientId}) ->
 
 
 get_authority_pub_key(Authority) ->
-    % KId = Headers,
     {ok, _} = application:ensure_all_started(inets),
     {ok, _} = application:ensure_all_started(ssl),
     ConfigurationUrl =
@@ -170,11 +152,5 @@ get_authority_pub_key(Authority) ->
     Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
     #{<<"jwks_uri">> := JwksUri} = Configuration,
     {ok, { {_, 200, _}, _, JwksJson}} = httpc:request(binary_to_list(JwksUri)),
-    JwksJson.
-    % Jwks = jiffy:decode(JwksJson, [return_maps]),
-    % #{<<"keys">> := Keys} = Jwks,
-    % lists:filter(
-    %             fun(Key) ->
-    %                 #{<<"kid">> := K} = Key,
-    %                 K =:= KId
-    %             end, Keys).
+    jsx:decode(list_to_binary(JwksJson),[return_maps]).
+

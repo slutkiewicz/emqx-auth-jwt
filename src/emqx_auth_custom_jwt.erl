@@ -112,7 +112,8 @@ decode_algo(Alg) -> throw({error, {unsupported_algorithm, Alg}}).
 %%--------------------------------------------------------------------
 
 verify_claims(Checklists, Claims, ClientInfo) ->
-    case do_verify_claims(feedvar(Checklists, ClientInfo), Claims) of
+    Checklist = feedvar(Checklists, ClientInfo),
+    case do_verify_claims(Checklist, Claims) of
         {error, Reason} ->
             ok = emqx_metrics:inc(?AUTH_METRICS(failure)),
             #{auth_result => Reason, anonymous => false};

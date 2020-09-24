@@ -124,10 +124,15 @@ verify_claims(Checklists, Claims, ClientInfo) ->
 do_verify_claims([], _Claims) ->
     ok;
 do_verify_claims([{Key, Expected} | L], Claims) ->
-    case maps:get(Key, Claims, undefined) =:= Expected of
+    case do_verify_claims2(maps:get(Key, Claims, undefined),Expected) of
         true -> do_verify_claims(L, Claims);
         false -> {error, {verify_claim_failed, Key}}
     end.
+
+do_verify_claims2(Value,Expected) when is_list(Value) -> 
+    lists:any(fun(X) -> X =:= Expected end,Value);
+do_verify_claims2(Value,Expected) -> 
+    Value =:= Expected.     
 
 feedvar(Checklists, #{username := Username, clientid := ClientId}) ->
     lists:map(fun({K, <<"%u">>}) -> {K, Username};
@@ -146,7 +151,7 @@ get_authority_pub_key(Authority) ->
     {ok, _} = application:ensure_all_started(inets),
     {ok, _} = application:ensure_all_started(ssl),
     ConfigurationUrl =
-        Authority++".well-known/openid-configuration",
+        Authority++"/.well-known/openid-configuration",
     {ok, { {_, 200, _}, _, ConfigurationJson}} =
         httpc:request(ConfigurationUrl),
     Configuration = jiffy:decode(ConfigurationJson, [return_maps]),

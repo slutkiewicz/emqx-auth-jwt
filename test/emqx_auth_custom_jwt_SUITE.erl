@@ -55,7 +55,6 @@ set_special_configs(emqx) ->
                         emqx_ct_helpers:deps_path(emqx, AclFilePath));
 
 set_special_configs(emqx_auth_custom_jwt) ->
-    application:set_env(emqx_auth_custom_jwt, secret, "emqxsecret"),
     application:set_env(emqx_auth_custom_jwt, from, password);
 
 set_special_configs(_) ->
@@ -64,7 +63,7 @@ set_special_configs(_) ->
 %%------------------------------------------------------------------------------
 %% Testcases
 %%------------------------------------------------------------------------------
-
+%%%%%----------------------------------TODO-------------------------------------
 % t_check_auth(_) ->
 %     Plain = #{clientid => <<"client1">>, username => <<"plain">>, zone => external},
 %     Jwt = jwerl:sign([{clientid, <<"client1">>},

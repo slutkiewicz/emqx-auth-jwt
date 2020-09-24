@@ -50,20 +50,11 @@ init([]) ->
 %%--------------------------------------------------------------------
 
 auth_env() ->
-    #{secret         => env(secret, undefined),
-      from           => env(from, password),
-      pubkey         => read_pubkey(),
+    #{from           => env(from, password),
       authority      => env(authority, undefined),
       checklists     => env(verify_claims, []),
       opts           => env(jwerl_opts, #{})
      }.
-
-read_pubkey() ->
-    case env(pubkey, undefined) of
-        undefined  -> undefined;
-        Path ->
-            {ok, PubKey} = file:read_file(Path), PubKey
-    end.
 
 env(Key, Default) ->
     application:get_env(?APP, Key, Default).

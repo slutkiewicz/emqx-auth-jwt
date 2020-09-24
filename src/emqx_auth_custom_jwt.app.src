@@ -1,5 +1,5 @@
 {application, emqx_auth_custom_jwt,
- [{description, "EMQ X Authentication with JWT"},
+ [{description, "EMQ X Authentication with JWT using id connect configuration endpoint"},
   {vsn, "git"},
   {modules, []},
   {registered, [emqx_auth_custom_jwt_sup]},

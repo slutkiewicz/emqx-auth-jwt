@@ -79,14 +79,19 @@ verify_token(#{alg := <<"RS", _/binary>>}, _Token, #{authority := undefined}) ->
 
 verify_token(#{kid := KId}, Token, #{authority := Authority}) ->
     application:ensure_all_started(jwk),
-    PubKey = get_authority_pub_key(Authority),
-    case jwk:decode(KId,PubKey) of 
-        {ok,Jwk} ->
-            verify_token2(Token,Jwk);
-        {error, Reason} ->
-            {error, Reason}
+    case get_authority_pub_key(Authority) of 
+        {ok,PubKey} -> 
+            case jwk:decode(KId,PubKey) of 
+                {ok,Jwk} ->
+                    verify_token2(Token,Jwk);
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        {error,Reason} ->
+                {error,Reason}
     end.
 
+    
 verify_token2(Token, Key) ->
     application:ensure_all_started(jwt),
     try jwt:decode(Token, Key) of
@@ -147,16 +152,47 @@ feedvar(Checklists, #{username := Username, clientid := ClientId}) ->
 %% Get Authority document
 %%--------------------------------------------------------------------
 
+get_configuration(ConfigurationUrl) ->
+    case httpc:request(ConfigurationUrl) of 
+        {ok, { {_, 200, _}, _, ConfigurationJson}} ->
+                 Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
+                 {ok,Configuration};
+        {error,Reason} -> 
+                {error,Reason}
+    end.
+
+get_jwks(Configuration) -> 
+    #{<<"jwks_uri">> := JwksUri} = Configuration,
+    case httpc:request(binary_to_list(JwksUri)) of 
+        {ok, { {_, 200, _}, _, JwksJson}} -> 
+            {ok,jsx:decode(list_to_binary(JwksJson),[return_maps])};
+        {error,Reason} -> {error,Reason}
+    end.
 
 get_authority_pub_key(Authority) ->
     {ok, _} = application:ensure_all_started(inets),
     {ok, _} = application:ensure_all_started(ssl),
-    ConfigurationUrl =
-        Authority++"/.well-known/openid-configuration",
-    {ok, { {_, 200, _}, _, ConfigurationJson}} =
-        httpc:request(ConfigurationUrl),
-    Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
-    #{<<"jwks_uri">> := JwksUri} = Configuration,
-    {ok, { {_, 200, _}, _, JwksJson}} = httpc:request(binary_to_list(JwksUri)),
-    jsx:decode(list_to_binary(JwksJson),[return_maps]).
+    ConfigurationUrl = Authority++"/.well-known/openid-configuration",
 
+    case get_configuration(ConfigurationUrl) of
+        {ok,Configuration} -> 
+                get_jwks(Configuration);
+        {error,Reason} ->
+                {error,Reason}
+    end.
+
+
+
+
+
+% get_authority_pub_key(Authority) ->
+%     {ok, _} = application:ensure_all_started(inets),
+%     {ok, _} = application:ensure_all_started(ssl),
+%     ConfigurationUrl =
+%         Authority++"/.well-known/openid-configuration",
+%     {ok, { {_, 200, _}, _, ConfigurationJson}} =
+%         httpc:request(ConfigurationUrl),
+%     Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
+%     #{<<"jwks_uri">> := JwksUri} = Configuration,
+%     {ok, { {_, 200, _}, _, JwksJson}} = httpc:request(binary_to_list(JwksUri)),
+%     jsx:decode(list_to_binary(JwksJson),[return_maps]).

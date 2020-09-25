@@ -77,9 +77,9 @@ description() -> "Authentication with JWT".
 verify_token(#{alg := <<"RS", _/binary>>}, _Token, #{authority := undefined}) ->
     {error, rsa_pubkey_undefined};
 
-verify_token(#{kid := KId}, Token, #{authority := Authority}) ->
+verify_token(#{kid := KId}, Token, #{authority := Authority,verifyssl := VerifySSL}) ->
     application:ensure_all_started(jwk),
-    case get_authority_pub_key(Authority) of 
+    case get_authority_pub_key(Authority,VerifySSL) of 
         {ok,PubKey} -> 
             case jwk:decode(KId,PubKey) of 
                 {ok,Jwk} ->
@@ -90,7 +90,6 @@ verify_token(#{kid := KId}, Token, #{authority := Authority}) ->
         {error,Reason} ->
                 {error,Reason}
     end.
-
     
 verify_token2(Token, Key) ->
     application:ensure_all_started(jwt),
@@ -103,8 +102,6 @@ verify_token2(Token, Key) ->
         _Error:Reason ->
             {error, Reason}
     end.
-
-
 
 
 decode_algo(<<"RS256">>) -> rs256;
@@ -152,8 +149,9 @@ feedvar(Checklists, #{username := Username, clientid := ClientId}) ->
 %% Get Authority document
 %%--------------------------------------------------------------------
 
-get_configuration(ConfigurationUrl) ->
-    case httpc:request(ConfigurationUrl) of 
+get_configuration(ConfigurationUrl,HTTPOption) ->
+    % SslOptions = verify_type() = verify_none,
+    case httpc:request(get,{ConfigurationUrl,[]},HTTPOption,[]) of 
         {ok, { {_, 200, _}, _, ConfigurationJson}} ->
                  Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
                  {ok,Configuration};
@@ -161,38 +159,30 @@ get_configuration(ConfigurationUrl) ->
                 {error,Reason}
     end.
 
-get_jwks(Configuration) -> 
+get_jwks(Configuration,HTTPOption) -> 
     #{<<"jwks_uri">> := JwksUri} = Configuration,
-    case httpc:request(binary_to_list(JwksUri)) of 
+    case httpc:request(get,{binary_to_list(JwksUri),[]},HTTPOption,[]) of 
         {ok, { {_, 200, _}, _, JwksJson}} -> 
             {ok,jsx:decode(list_to_binary(JwksJson),[return_maps])};
         {error,Reason} -> {error,Reason}
     end.
 
-get_authority_pub_key(Authority) ->
+get_authority_pub_key(Authority,VerifySSL) ->
     {ok, _} = application:ensure_all_started(inets),
     {ok, _} = application:ensure_all_started(ssl),
+
+    if 
+        VerifySSL == false ->
+            HTTPOptions = [{ssl, [{verify, verify_none}]}];
+        true -> 
+            HTTPOptions = [{ssl, [{verify, verify_peer}]}]
+    end,
+
     ConfigurationUrl = Authority++"/.well-known/openid-configuration",
 
-    case get_configuration(ConfigurationUrl) of
+    case get_configuration(ConfigurationUrl,HTTPOptions) of
         {ok,Configuration} -> 
-                get_jwks(Configuration);
+                get_jwks(Configuration,HTTPOptions);
         {error,Reason} ->
                 {error,Reason}
     end.
-
-
-
-
-
-% get_authority_pub_key(Authority) ->
-%     {ok, _} = application:ensure_all_started(inets),
-%     {ok, _} = application:ensure_all_started(ssl),
-%     ConfigurationUrl =
-%         Authority++"/.well-known/openid-configuration",
-%     {ok, { {_, 200, _}, _, ConfigurationJson}} =
-%         httpc:request(ConfigurationUrl),
-%     Configuration = jiffy:decode(ConfigurationJson, [return_maps]),
-%     #{<<"jwks_uri">> := JwksUri} = Configuration,
-%     {ok, { {_, 200, _}, _, JwksJson}} = httpc:request(binary_to_list(JwksUri)),
-%     jsx:decode(list_to_binary(JwksJson),[return_maps]).

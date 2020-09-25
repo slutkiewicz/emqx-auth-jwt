@@ -9,6 +9,11 @@
   {datatype, string}
 ]}.
 
+{mapping, "auth.custom_jwt.verify_ssl", "emqx_auth_custom_jwt.verify_ssl", [
+  {default, true},
+  {datatype, atom}
+]}.
+
 {mapping, "auth.custom_jwt.verify_claims", "emqx_auth_custom_jwt.verify_claims", [
   {default, off},
   {datatype, flag}

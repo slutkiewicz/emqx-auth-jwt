@@ -52,6 +52,7 @@ init([]) ->
 auth_env() ->
     #{from           => env(from, password),
       authority      => env(authority, undefined),
+      verifyssl      => env(verify_ssl, true),
       checklists     => env(verify_claims, []),
       opts           => env(jwerl_opts, #{})
      }.
